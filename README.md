@@ -12,3 +12,5 @@ Create a file named "labelsFinder.json" at the root of your project and add the 
     "documentSelector": ["javascript", "typescript", "html"]
 }
 ```
+
+![Sample](demo.gif)

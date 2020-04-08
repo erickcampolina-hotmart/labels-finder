@@ -2,6 +2,7 @@
 	"name": "labels-finder",
 	"displayName": "Labels Finder",
 	"publisher": "erickhcs",
+	"icon": "icon.png",
 	"description": "A extension to find api-languages labels.",
 	"repository": {
 		"type": "git",
