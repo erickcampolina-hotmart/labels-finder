@@ -1,7 +1,7 @@
 {
 	"name": "labels-finder",
 	"displayName": "Labels Finder",
-	"publisher": "erickcampolina-hotmart",
+	"publisher": "erickhcs",
 	"description": "A extension to find api-languages labels.",
 	"repository": {
 		"type": "git",

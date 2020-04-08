@@ -12,7 +12,7 @@ export async function activate(context: ExtensionContext) {
   const configFilePath = `${workspace.rootPath}/labelsFinder.json`;
   const configFile = await require(configFilePath);
   const ptBRJSON = await require(`${workspace.rootPath}/${configFile.labelsPath}`);
-  const documentSelector = ['javascript', 'typescript'];
+  const documentSelector = configFile.documentSelector;
   const { registerCompletionItemProvider } = languages;
 
   let provider = registerCompletionItemProvider(documentSelector, {
