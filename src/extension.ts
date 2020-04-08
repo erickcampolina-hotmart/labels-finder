@@ -1,66 +1,82 @@
-import * as vscode from 'vscode';
+import {
+  CompletionItem,
+  ExtensionContext,
+  languages,
+  Position,
+  TextDocument,
+  workspace
+} from 'vscode';
 
-export async function activate(context: vscode.ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 
-	const configFilePath = `${vscode.workspace.rootPath}/labelsFinder.json`;
-	const configFile = await require(configFilePath);
-	const ptBRJSON = await require(`${vscode.workspace.rootPath}/${configFile.labelsPath}`);
-	const documentSelector = ['javascript', 'typescript'];
-	let providers = [];
+  const configFilePath = `${workspace.rootPath}/labelsFinder.json`;
+  const configFile = await require(configFilePath);
+  const ptBRJSON = await require(`${workspace.rootPath}/${configFile.labelsPath}`);
+  const documentSelector = ['javascript', 'typescript'];
+  const { registerCompletionItemProvider } = languages;
 
-	let provider = vscode.languages.registerCompletionItemProvider(documentSelector, {
+  let provider = registerCompletionItemProvider(documentSelector, {
+    provideCompletionItems() {
 
-		provideCompletionItems() {
+      let completionItems: CompletionItem[] = [];
 
-			let completionItems: Array<vscode.CompletionItem> = [];
-			for (let key in ptBRJSON) {
-				let completionItem = new vscode.CompletionItem(key);
-				completionItem.commitCharacters = ['.'];
-				completionItems.push(completionItem);
-			}
+      for (let key in ptBRJSON) {
+        let completionItem = new CompletionItem(key);
+        completionItem.commitCharacters = ['.'];
+        completionItems.push(completionItem);
+      }
 
-			return completionItems;
-		}
-	});
+      return [...completionItems];
+    }
 
-	providers.push(provider);
+  });
 
-	for (let key in ptBRJSON) {
+  let providerChildren = registerCompletionItemProvider(
+    documentSelector,
+    {
+      provideCompletionItems(document: TextDocument, position: Position) {
 
-		let currentObj = ptBRJSON[key];
+        let isNodeFound = false;
+        let completionItems: CompletionItem[] = [];
+        let linePrefix = document.lineAt(position).text.substr(0, position.character);
 
-		let provider2 = vscode.languages.registerCompletionItemProvider(
-			documentSelector,
-			{
-				provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+        const searchNode = (currentNode: any, JSONPath: string) => {
+          if (isNodeFound) {
+            return;
+          }
 
-					let completionItems: vscode.CompletionItem[] = [];
+          if (linePrefix.endsWith(`${JSONPath}.`)) {
+            isNodeFound = true;
 
-					let linePrefix = document.lineAt(position).text.substr(0, position.character);
+            if (typeof currentNode === 'object') {
+              for (let key in currentNode) {
+                let completionItem = new CompletionItem(key);
+                let childrenValue = currentNode[key];
 
-					if (linePrefix.endsWith(`${key}.`)) {
-						for (let key2 in currentObj) {
-							let completionItem = new vscode.CompletionItem(key2);
-							
-							if (typeof currentObj[key2] === 'object') {
-								completionItem.commitCharacters = ['.'];
-							} else {
-								completionItem.documentation = currentObj[key2];
-							}
-							
-							completionItems.push(completionItem);
-						}
-					} else {
-						return undefined;
-					}
+                if (typeof childrenValue === 'object') {
+                  completionItem.commitCharacters = ['.'];
+                } else {
+                  completionItem.documentation = childrenValue;
+                }
+                completionItems.push(completionItem);
+              }
+            }
+          } else if (typeof currentNode === 'object') {
+            for (let key in currentNode) {
+              searchNode(currentNode[key], `${JSONPath}.${key}`);
+            }
+          }
+        };
 
-					return completionItems;
-				}
-			},
-			'.'
-		);
-		providers.push(provider2);
-	}
+        for (let key in ptBRJSON) {
+          searchNode(ptBRJSON[key], key);
+        }
 
-	context.subscriptions.push(...providers);
+        return isNodeFound ? completionItems : undefined;
+      }
+    },
+    '.'
+  );
+
+  context.subscriptions.push(provider, providerChildren);
 }
