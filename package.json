@@ -16,8 +16,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onLanguage:javascript",
-		"onLanguage:typescript"
+		"workspaceContains:labelsFinder.json",
+		"onCommand:editor.actions.triggerSuggest"
 	],
 	"main": "./out/extension.js",
 	"scripts": {
