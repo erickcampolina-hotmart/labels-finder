@@ -1,30 +1,28 @@
-import {
-  CompletionItem,
-  CompletionItemKind,
-  ExtensionContext,
-  languages,
-  Position,
-  TextDocument,
-  window,
-  workspace,
-} from "vscode";
+import { ExtensionContext, window, workspace, Disposable } from "vscode";
 import { watchFile } from "fs";
 import * as path from "path";
 
+import { getProvider, getProviderChildren } from "./providers";
+
 export async function activate(context: ExtensionContext) {
   const { showWarningMessage } = window;
-  const { registerCompletionItemProvider } = languages;
-  const configFilePath = `${workspace.rootPath}/labelsFinder.json`;
+  
+  const configFileName = "labelsFinder.json";
+  const configFilePath = path.resolve(
+    `${workspace.rootPath}/${configFileName}`
+  );
 
-  let configFile: { labelsPath: string; documentSelector: string[] };
-  let documentSelector;
   let sourceFile: any;
+  let provider: Disposable;
+  let providerChildren: Disposable;
+  let documentSelector: string | string[];
+  let configFile: { labelsPath: string; documentSelector: string[] };
 
   try {
     configFile = await require(configFilePath);
   } catch {
     showWarningMessage(
-      'Configuration file "labelsFinder.json" not found on root of your project.'
+      `Configuration file "${configFileName}" not found on root of your project.`
     );
     return;
   }
@@ -40,87 +38,58 @@ export async function activate(context: ExtensionContext) {
     return;
   }
 
+  try {
+    documentSelector = configFile.documentSelector;
+  } catch {
+    showWarningMessage(
+      `"documentSelector" not found on config file "${configFileName}"`
+    );
+    return;
+  }
+
+  const refreshProviders = () => {
+    provider.dispose();
+    providerChildren.dispose();
+
+    provider = getProvider(sourceFile, documentSelector);
+    providerChildren = getProviderChildren(sourceFile, documentSelector);
+
+    context.subscriptions.push(provider, providerChildren);
+  };
+
   watchFile(sourceFilePath, async () => {
     try {
       delete require.cache[sourceFilePath];
       sourceFile = await require(sourceFilePath);
+
+      refreshProviders();
     } catch {
       showWarningMessage('Source file not find on specified "labelsPath".');
     }
   });
 
-  try {
-    documentSelector = configFile.documentSelector;
-  } catch {
-    showWarningMessage(
-      '"documentSelector" not found on config file "labelsFinder.json"'
-    );
-    return;
-  }
+  watchFile(configFilePath, async () => {
+    try {
+      delete require.cache[configFilePath];
+      delete require.cache[sourceFilePath];
 
-  let provider = registerCompletionItemProvider(documentSelector, {
-    provideCompletionItems() {
-      let completionItems: CompletionItem[] = [];
+      configFile = await require(configFilePath);
+      sourceFilePath = path.resolve(
+        `${workspace.rootPath}/${configFile.labelsPath}`
+      );
+      sourceFile = await require(sourceFilePath);
+      documentSelector = configFile.documentSelector;
 
-      for (let key in sourceFile) {
-        let completionItem = new CompletionItem(key);
-        completionItem.commitCharacters = ["."];
-        completionItems.push(completionItem);
-      }
-
-      return [...completionItems];
-    },
+      refreshProviders();
+    } catch {
+      showWarningMessage(
+        `Configuration file "${configFileName}" invalid.`
+      );
+    }
   });
 
-  let providerChildren = registerCompletionItemProvider(
-    documentSelector,
-    {
-      provideCompletionItems(document: TextDocument, position: Position) {
-        let isNodeFound = false;
-        let completionItems: CompletionItem[] = [];
-        let linePrefix = document
-          .lineAt(position)
-          .text.substr(0, position.character);
-
-        const searchNode = (currentNode: any, JSONPath: string) => {
-          if (isNodeFound) {
-            return;
-          }
-
-          if (linePrefix.endsWith(`${JSONPath}.`)) {
-            isNodeFound = true;
-
-            if (typeof currentNode === "object") {
-              for (let key in currentNode) {
-                let completionItem = new CompletionItem(key);
-                let childrenValue = currentNode[key];
-
-                if (typeof childrenValue === "object") {
-                  completionItem.commitCharacters = ["."];
-                  completionItem.kind = CompletionItemKind.Property;
-                } else {
-                  completionItem.detail = childrenValue;
-                  completionItem.kind = CompletionItemKind.Field;
-                }
-                completionItems.push(completionItem);
-              }
-            }
-          } else if (typeof currentNode === "object") {
-            for (let key in currentNode) {
-              searchNode(currentNode[key], `${JSONPath}.${key}`);
-            }
-          }
-        };
-
-        for (let key in sourceFile) {
-          searchNode(sourceFile[key], key);
-        }
-
-        return isNodeFound ? completionItems : undefined;
-      },
-    },
-    "."
-  );
+  provider = getProvider(sourceFile, documentSelector);
+  providerChildren = getProviderChildren(sourceFile, documentSelector);
 
   context.subscriptions.push(provider, providerChildren);
 }
