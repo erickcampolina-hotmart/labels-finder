@@ -8,16 +8,17 @@ import {
   window,
   workspace,
 } from "vscode";
+import { watchFile } from "fs";
+import * as path from "path";
 
 export async function activate(context: ExtensionContext) {
   const { showWarningMessage } = window;
   const { registerCompletionItemProvider } = languages;
-
   const configFilePath = `${workspace.rootPath}/labelsFinder.json`;
 
-  let configFile;
+  let configFile: { labelsPath: string; documentSelector: string[] };
   let documentSelector;
-  let sourceFile: { [key: string]: string };
+  let sourceFile: any;
 
   try {
     configFile = await require(configFilePath);
@@ -28,12 +29,25 @@ export async function activate(context: ExtensionContext) {
     return;
   }
 
+  let sourceFilePath = path.resolve(
+    `${workspace.rootPath}/${configFile.labelsPath}`
+  );
+
   try {
-    sourceFile = await require(`${workspace.rootPath}/${configFile.labelsPath}`);
+    sourceFile = await require(sourceFilePath);
   } catch {
     showWarningMessage('Source file not find on specified "labelsPath".');
     return;
   }
+
+  watchFile(sourceFilePath, async () => {
+    try {
+      delete require.cache[sourceFilePath];
+      sourceFile = await require(sourceFilePath);
+    } catch {
+      showWarningMessage('Source file not find on specified "labelsPath".');
+    }
+  });
 
   try {
     documentSelector = configFile.documentSelector;
