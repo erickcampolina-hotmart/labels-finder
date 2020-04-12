@@ -9,7 +9,7 @@ import {
 const { registerCompletionItemProvider } = languages;
 
 const getProvider = (sourceFile: any, documentSelector: string | string[]) => {
-  let provider = registerCompletionItemProvider(documentSelector, {
+  return registerCompletionItemProvider(documentSelector, {
     provideCompletionItems() {
       let completionItems: CompletionItem[] = [];
 
@@ -22,15 +22,13 @@ const getProvider = (sourceFile: any, documentSelector: string | string[]) => {
       return [...completionItems];
     },
   });
-
-  return provider;
 };
 
-const getProviderChildren = (
+const getChildrenProvider = (
   sourceFile: any,
   documentSelector: string | string[]
 ) => {
-  let providerChildren = registerCompletionItemProvider(
+  return registerCompletionItemProvider(
     documentSelector,
     {
       provideCompletionItems(document: TextDocument, position: Position) {
@@ -79,8 +77,39 @@ const getProviderChildren = (
     },
     "."
   );
-
-  return providerChildren;
 };
 
-export { getProvider, getProviderChildren };
+const getTextProvider = (
+  sourceFile: any,
+  documentSelector: string | string[]
+) => {
+  return registerCompletionItemProvider(documentSelector, {
+    provideCompletionItems() {
+      let completionItems: CompletionItem[] = [];
+
+      const searchNode = (currentNode: any, JSONPath: string) => {
+        if (typeof currentNode === "object") {
+          for (let key in currentNode) {
+            searchNode(currentNode[key], `${JSONPath}.${key}`);
+          }
+        } else {
+          let completionItem = new CompletionItem(currentNode);
+
+          completionItem.detail = `${JSONPath}: ${currentNode}`;
+          completionItem.kind = CompletionItemKind.Field;
+          completionItem.insertText = JSONPath;
+
+          completionItems.push(completionItem);
+        }
+      };
+
+      for (let key in sourceFile) {
+        searchNode(sourceFile[key], key);
+      }
+
+      return [...completionItems];
+    },
+  });
+};
+
+export { getProvider, getChildrenProvider, getTextProvider };

@@ -2,11 +2,11 @@ import { ExtensionContext, window, workspace, Disposable } from "vscode";
 import { watchFile } from "fs";
 import * as path from "path";
 
-import { getProvider, getProviderChildren } from "./providers";
+import { getProvider, getChildrenProvider, getTextProvider } from "./providers";
 
 export async function activate(context: ExtensionContext) {
   const { showWarningMessage } = window;
-  
+
   const configFileName = "labelsFinder.json";
   const configFilePath = path.resolve(
     `${workspace.rootPath}/${configFileName}`
@@ -14,7 +14,8 @@ export async function activate(context: ExtensionContext) {
 
   let sourceFile: any;
   let provider: Disposable;
-  let providerChildren: Disposable;
+  let childrenProvider: Disposable;
+  let textProvider: Disposable;
   let documentSelector: string | string[];
   let configFile: { labelsPath: string; documentSelector: string[] };
 
@@ -49,12 +50,14 @@ export async function activate(context: ExtensionContext) {
 
   const refreshProviders = () => {
     provider.dispose();
-    providerChildren.dispose();
+    childrenProvider.dispose();
+    textProvider.dispose();
 
     provider = getProvider(sourceFile, documentSelector);
-    providerChildren = getProviderChildren(sourceFile, documentSelector);
+    childrenProvider = getChildrenProvider(sourceFile, documentSelector);
+    textProvider = getTextProvider(sourceFile, documentSelector);
 
-    context.subscriptions.push(provider, providerChildren);
+    context.subscriptions.push(provider, childrenProvider, textProvider);
   };
 
   watchFile(sourceFilePath, async () => {
@@ -82,14 +85,13 @@ export async function activate(context: ExtensionContext) {
 
       refreshProviders();
     } catch {
-      showWarningMessage(
-        `Configuration file "${configFileName}" invalid.`
-      );
+      showWarningMessage(`Configuration file "${configFileName}" invalid.`);
     }
   });
 
   provider = getProvider(sourceFile, documentSelector);
-  providerChildren = getProviderChildren(sourceFile, documentSelector);
+  childrenProvider = getChildrenProvider(sourceFile, documentSelector);
+  textProvider = getTextProvider(sourceFile, documentSelector);
 
-  context.subscriptions.push(provider, providerChildren);
+  context.subscriptions.push(provider, childrenProvider, textProvider);
 }
